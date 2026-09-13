@@ -1,13 +1,13 @@
-from dspplay import play_file, slider
+import dspplay as dp
 
-gain = slider("Gain", 0.5, 0.0, 1.0, decimals=2)
+gain = dp.slider("Gain", 0.5, 0.0, 1.0, decimals=2)
 
 
 def process(block, fs):
     return gain.value * block
 
 
-play_file(
+dp.play_file(
     "../audio/example_stereo.wav",
     process,
     controls=[gain],

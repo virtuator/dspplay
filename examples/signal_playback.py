@@ -1,7 +1,6 @@
 import numpy as np
 
-from dspplay import play_signal
-
+import dspplay as dp
 
 fs = 48_000
 duration = 1.0
@@ -11,4 +10,4 @@ amplitude = 0.1
 t = np.arange(int(duration * fs)) / fs
 x = amplitude * np.sin(2 * np.pi * f * t)
 
-play_signal(x, fs)
+dp.play_signal(x, fs)

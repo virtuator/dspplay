@@ -1,7 +1,13 @@
 # dspplay
 
-`dspplay` ist eine kleine Echtzeit-Hülle für den Audio-DSP/Python-Kurs. Die
-Studierenden schreiben weiterhin eine gewöhnliche Funktion:
+`dspplay` ist eine kleine Echtzeit-Hülle für den Audio-DSP/Python-Kurs. Im
+Skript wird die Bibliothek einheitlich mit `dp` abgekürzt:
+
+```python
+import dspplay as dp
+```
+
+Die Studierenden schreiben weiterhin eine gewöhnliche Funktion:
 
 ```python
 def process(block, fs):
@@ -35,11 +41,11 @@ festgelegt.
 Ein bereits berechnetes Signal wird mit `play_signal(...)` abgespielt:
 
 ```python
-from dspplay import play_signal
+import dspplay as dp
 
 y = 0.5 * x
 
-play_signal(y, fs)
+dp.play_signal(y, fs)
 ```
 
 Die Funktion wartet bis zum Ende der Wiedergabe. Vorher prüft sie:
@@ -70,10 +76,10 @@ Verschieben des Reglers verwendet bereits der nächste Audioblock den neuen
 Wert:
 
 ```python
-from dspplay import play_file, slider
+import dspplay as dp
 
 
-gain = slider(
+gain = dp.slider(
     "Gain",
     value=0.5,
     minimum=0.0,
@@ -85,7 +91,7 @@ def process(block, fs):
     return gain.value * block
 
 
-play_file(
+dp.play_file(
     "audio/example_stereo.wav",
     process,
     controls=[gain],
@@ -135,7 +141,7 @@ damit unabhängig von einer fest eingetragenen Samplingrate berechnet werden.
 Für Frequenzen ist eine logarithmische Reglerskala sinnvoll:
 
 ```python
-cutoff = slider(
+cutoff = dp.slider(
     "Cutoff",
     value=1_000,
     minimum=20,
@@ -149,7 +155,7 @@ cutoff = slider(
 Mehrere Regler werden als Liste an die Wiedergabe übergeben:
 
 ```python
-play_file(
+dp.play_file(
     "audio/example_stereo.wav",
     process,
     controls=[cutoff, resonance],
@@ -167,17 +173,17 @@ Dieselbe `process(...)`-Idee funktioniert mit Mikrofon, Gitarre oder
 Audiointerface:
 
 ```python
-from dspplay import play_input, slider
+import dspplay as dp
 
 
-gain = slider("Gain", 0.25, 0.0, 1.0)
+gain = dp.slider("Gain", 0.25, 0.0, 1.0)
 
 
 def process(block, fs):
     return gain.value * block
 
 
-play_input(
+dp.play_input(
     process,
     controls=[gain],
     samplerate=48_000,
@@ -212,15 +218,15 @@ die Bibliothek gilt bereits jetzt:
 Die verfügbaren Geräte lassen sich anzeigen mit:
 
 ```python
-from dspplay import list_devices
+import dspplay as dp
 
-list_devices()
+dp.list_devices()
 ```
 
 Danach kann ein Gerätename oder eine Gerätenummer übergeben werden:
 
 ```python
-play_file(
+dp.play_file(
     "audio/example_stereo.wav",
     process,
     device="MacBook Pro Speakers",
@@ -230,7 +236,7 @@ play_file(
 Für getrennte Ein- und Ausgänge:
 
 ```python
-play_input(process, device=(2, 5))
+dp.play_input(process, device=(2, 5))
 ```
 
 ## Blockgrösse und Latenz
@@ -247,13 +253,13 @@ Hardwarepuffer kommen hinzu.
 Bei Knacksern oder Aussetzern zuerst eine grössere Blockgrösse wählen:
 
 ```python
-play_input(process, blocksize=512)
+dp.play_input(process, blocksize=512)
 ```
 
 Falls nötig kann zusätzlich eine robustere Gerätelatenz verlangt werden:
 
 ```python
-play_input(process, blocksize=512, latency="high")
+dp.play_input(process, blocksize=512, latency="high")
 ```
 
 ## Regeln für `process(...)`
@@ -278,8 +284,7 @@ auf fortlaufende Blöcke angewandt werden:
 
 ```python
 import soundfile as sf
-
-from dspplay import play_file, play_signal
+import dspplay as dp
 
 
 def process(block, fs):
@@ -289,8 +294,8 @@ def process(block, fs):
 x, fs = sf.read("audio/example_stereo.wav")
 y = process(x, fs)
 
-play_signal(y, fs)
-play_file("audio/example_stereo.wav", process)
+dp.play_signal(y, fs)
+dp.play_file("audio/example_stereo.wav", process)
 ```
 
 Bei zustandsbehafteten Algorithmen muss zusätzlich definiert sein, wann der

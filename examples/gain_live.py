@@ -1,6 +1,6 @@
-from dspplay import play_input, slider
+import dspplay as dp
 
-gain = slider("Gain", 0.25, 0.0, 1.0, decimals=2)
+gain = dp.slider("Gain", 0.25, 0.0, 1.0, decimals=2)
 
 
 def process(block, fs):
@@ -8,7 +8,7 @@ def process(block, fs):
 
 
 # Use headphones and begin with a low output level to avoid feedback.
-play_input(
+dp.play_input(
     process,
     controls=[gain],
     channels=1,

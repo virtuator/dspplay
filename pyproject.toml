@@ -1,0 +1,27 @@
+[project]
+name = "dspplay"
+version = "0.1.0"
+description = "A small realtime audio playground for teaching DSP with Python"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26",
+    "sounddevice>=0.5",
+    "soundfile>=0.13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

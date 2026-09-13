@@ -1,6 +1,6 @@
 import pytest
 
-from dspplay import Parameter
+from dspplay import Parameter, slider
 
 
 def test_parameter_clamps_values():
@@ -23,3 +23,10 @@ def test_log_parameter_round_trip():
 def test_log_parameter_rejects_zero_minimum():
     with pytest.raises(ValueError):
         Parameter("Cutoff", 1_000, 0, 20_000, scale="log")
+
+
+def test_slider_creates_parameter():
+    gain = slider("Gain", 0.5, 0.0, 1.0)
+
+    assert isinstance(gain, Parameter)
+    assert gain.value == 0.5

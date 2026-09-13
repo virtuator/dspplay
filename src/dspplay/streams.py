@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 AudioBlock = NDArray[np.float32]
-Processor = Callable[[AudioBlock], AudioBlock]
+Processor = Callable[[AudioBlock, float], AudioBlock]
 
 
 def _sounddevice():
@@ -29,14 +29,45 @@ def list_devices() -> None:
     print(_sounddevice().query_devices())
 
 
-def _copy_processed(process: Processor, block: AudioBlock, outdata: AudioBlock) -> None:
-    result = np.asarray(process(block))
-    if result.shape != outdata.shape:
+def _course_block(block: AudioBlock) -> AudioBlock:
+    """Expose mono as 1-D while keeping multichannel audio sample-first."""
+
+    if block.shape[1] == 1:
+        return block[:, 0]
+    return block
+
+
+def _copy_processed(
+    process: Processor,
+    block: AudioBlock,
+    outdata: AudioBlock,
+    samplerate: float,
+    *,
+    max_peak: float = 1.0,
+) -> None:
+    course_block = _course_block(block)
+    result = np.asarray(process(course_block, samplerate))
+    if result.shape != course_block.shape:
         raise ValueError(
             "process(block) returned shape "
-            f"{result.shape}; expected {outdata.shape} (frames, channels)"
+            f"{result.shape}; expected {course_block.shape}"
         )
-    outdata[:] = result
+    if not np.issubdtype(result.dtype, np.number) or np.iscomplexobj(result):
+        raise TypeError("process(block, fs) must return real numeric audio data")
+    if not np.all(np.isfinite(result)):
+        raise ValueError("process(block, fs) returned NaN or infinite values")
+
+    peak = float(np.max(np.abs(result), initial=0.0))
+    if peak > max_peak:
+        raise ValueError(
+            f"process(block, fs) returned peak {peak:.3f}; "
+            f"the allowed maximum is {max_peak:.3f}"
+        )
+
+    if outdata.shape[1] == 1:
+        outdata[:, 0] = result
+    else:
+        outdata[:] = result
 
 
 class _LoopReader:
@@ -61,10 +92,13 @@ class _LoopReader:
 
 
 class _RealtimeStream:
-    def __init__(self, process: Processor) -> None:
+    def __init__(self, process: Processor, max_peak: float) -> None:
         if not callable(process):
             raise TypeError("process must be callable")
+        if not np.isfinite(max_peak) or max_peak <= 0:
+            raise ValueError("max_peak must be a positive finite number")
         self.process = process
+        self.max_peak = float(max_peak)
         self._stream: Any | None = None
         self._error: BaseException | None = None
         self.last_status = ""
@@ -131,8 +165,9 @@ class FileLoop(_RealtimeStream):
         blocksize: int = 256,
         device: int | str | None = None,
         latency: float | str | None = "low",
+        max_peak: float = 1.0,
     ) -> None:
-        super().__init__(process)
+        super().__init__(process, max_peak)
         try:
             import soundfile as sf
         except ImportError as error:
@@ -161,7 +196,13 @@ class FileLoop(_RealtimeStream):
                 self._input_block = np.empty((frames, self.channels), np.float32)
             self._reader.fill(self._input_block)
             try:
-                _copy_processed(self.process, self._input_block, outdata)
+                _copy_processed(
+                    self.process,
+                    self._input_block,
+                    outdata,
+                    self.samplerate,
+                    max_peak=self.max_peak,
+                )
             except Exception as error:  # noqa: BLE001 - audio must fail silent
                 self._abort(outdata, error)
 
@@ -188,8 +229,9 @@ class LiveInput(_RealtimeStream):
         channels: int = 1,
         device: int | str | tuple[int | str | None, int | str | None] | None = None,
         latency: float | str | tuple[float | str, float | str] | None = "low",
+        max_peak: float = 1.0,
     ) -> None:
-        super().__init__(process)
+        super().__init__(process, max_peak)
         self.samplerate = float(samplerate)
         self.blocksize = int(blocksize)
         self.channels = int(channels)
@@ -203,7 +245,13 @@ class LiveInput(_RealtimeStream):
             del frames, time
             self._remember_status(status)
             try:
-                _copy_processed(self.process, indata, outdata)
+                _copy_processed(
+                    self.process,
+                    indata,
+                    outdata,
+                    self.samplerate,
+                    max_peak=self.max_peak,
+                )
             except Exception as error:  # noqa: BLE001 - audio must fail silent
                 self._abort(outdata, error)
 

@@ -70,6 +70,33 @@ class Parameter:
         return f"{self.value:.{self.decimals}f}{suffix}"
 
 
+def slider(
+    name: str,
+    value: float,
+    minimum: float,
+    maximum: float,
+    *,
+    scale: str = "linear",
+    unit: str = "",
+    decimals: int = 2,
+) -> Parameter:
+    """Create a course-friendly slider parameter.
+
+    The lower-case factory keeps the beginner-facing API function-oriented.
+    ``Parameter`` remains available for advanced use and backwards compatibility.
+    """
+
+    return Parameter(
+        name,
+        value,
+        minimum,
+        maximum,
+        scale=scale,
+        unit=unit,
+        decimals=decimals,
+    )
+
+
 def show_controls(
     *parameters: Parameter,
     title: str = "dspplay",

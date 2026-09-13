@@ -1,113 +1,202 @@
 # dspplay
 
-`dspplay` ist eine kleine Realtime-Hülle für den Audio-DSP/Python-Kurs. Die Studierenden schreiben weiterhin eine gewöhnliche Funktion
+`dspplay` ist eine kleine Echtzeit-Hülle für den Audio-DSP/Python-Kurs. Die
+Studierenden schreiben weiterhin eine gewöhnliche Funktion:
 
 ```python
-def process(block):
+def process(block, fs):
     return 0.5 * block
 ```
 
-und können deren Wirkung unmittelbar hören. `dspplay` kümmert sich um Audiogerät, Blöcke, WAV-Loop und ein minimales Sliderfenster.
-
-Der Entwurf ist bewusst klein. Er ersetzt weder NumPy noch Soundfile und soll die eigentliche Signalverarbeitung nicht verstecken.
+`dspplay` kümmert sich um Audiogerät, Audioblöcke, Datei-Loop, sichere
+Wiedergabe und ein minimales Reglerfenster. NumPy und die eigentliche
+Signalverarbeitung bleiben sichtbar.
 
 ## Installation
 
-Im Ordner `dspplay`:
+Im Entwicklungsordner von `dspplay`:
 
 ```bash
 uv sync
 ```
 
-Für die Verwendung aus einem bestehenden Kursprojekt:
+Liegt `dspplay` direkt neben einem bestehenden Kursprojekt, kann es dort als
+editierbares Paket hinzugefügt werden:
 
 ```bash
 uv add --editable ../dspplay
 ```
 
-Alternativ kann der Ordner `dspplay` direkt als eigenes PyCharm-Projekt geöffnet werden.
+Wie die Bibliothek später an die Studierenden verteilt wird, ist noch nicht
+festgelegt.
 
-## Erstes Beispiel: Gain auf einem WAV-Loop
+## Ein Signal sicher abspielen
 
-Lege zunächst eine kurze Audiodatei unter `audio/drums.wav` ab. Das vollständige Script lautet:
+Ein bereits berechnetes Signal wird mit `play_signal(...)` abgespielt:
 
 ```python
-from dspplay import FileLoop, Parameter, show_controls
+from dspplay import play_signal
 
-gain = Parameter("Gain", 0.5, 0.0, 2.0)
+y = 0.5 * x
+
+play_signal(y, fs)
+```
+
+Die Funktion wartet bis zum Ende der Wiedergabe. Vorher prüft sie:
+
+- Monoform `(N,)` oder Mehrkanalform `(N, C)`
+- nicht leeres Array
+- reelle numerische Werte
+- keine `NaN`- oder unendlichen Werte
+- positive Samplingrate
+- Peak innerhalb des erlaubten Bereichs
+
+Ein kritisches Signal wird nicht heimlich normalisiert oder begrenzt. Die
+Wiedergabe wird mit einer verständlichen Fehlermeldung verweigert.
+
+## Eine Datei in Echtzeit bearbeiten
+
+Das folgende Beispiel spielt `audio/example_stereo.wav` als Loop. Beim
+Verschieben des Reglers verwendet bereits der nächste Audioblock den neuen
+Wert:
+
+```python
+from dspplay import play_file, slider
 
 
-def process(block):
+gain = slider(
+    "Gain",
+    value=0.5,
+    minimum=0.0,
+    maximum=1.0,
+)
+
+
+def process(block, fs):
     return gain.value * block
 
 
-with FileLoop("audio/drums.wav", process) as player:
-    show_controls(gain, title="Gain", check=player.check)
+play_file(
+    "audio/example_stereo.wav",
+    process,
+    controls=[gain],
+    title="Gain",
+)
 ```
 
-Beim Verschieben des Reglers ändert sich `gain.value`. Der nächste Audioblock verwendet bereits den neuen Wert.
+Die Studierenden müssen dafür weder einen Sounddevice-Callback noch einen
+Context Manager schreiben. Die fortgeschrittenen Klassen `FileLoop` und
+`LiveInput` bleiben verfügbar, sind aber nicht die normale Kursoberfläche.
 
 ## Das Datenmodell
 
-`process()` erhält ein NumPy-Array mit der Form
+Die öffentliche Schnittstelle folgt derselben Konvention wie das Skript und
+das Standardverhalten von SoundFile:
 
 ```text
-(frames, channels)
+Mono:         (frames,)
+Mehrkanal:    (frames, channels)
 ```
 
-Ein Block mit 256 Frames und zwei Kanälen hat also `block.shape == (256, 2)`. Die Funktion muss wieder ein Array derselben Form zurückgeben.
+Ein Stereoblock mit 256 Frames hat also `block.shape == (256, 2)`. Ein
+Monoblock derselben Länge hat `block.shape == (256,)`.
+
+Sounddevice verwendet intern auch für Mono eine zweidimensionale Form.
+`dspplay` wandelt diese Form an der Grenze zur Kursfunktion automatisch um.
+`process(...)` muss wieder ein Array derselben Form zurückgeben.
+
+Die Echtzeitdaten verwenden `float32`. Der übliche Wertebereich liegt zwischen
+`-1.0` und `+1.0`.
+
+## Die Samplingrate
+
+`process(...)` erhält neben dem Block immer die Samplingrate `fs`:
 
 ```python
-def process(block):
-    output = 0.5 * block
-    return output
+def process(block, fs):
+    return block
 ```
 
-Die Audiodaten verwenden `float32`. Der übliche Wertebereich liegt zwischen `-1.0` und `+1.0`. Werte ausserhalb dieses Bereichs können beim Ausgang verzerren oder begrenzt werden.
+Bei `play_file(...)` stammt `fs` aus der Audiodatei. Bei `play_input(...)` wird
+sie beim Start festgelegt. Filterkoeffizienten, Delayzeiten und LFOs können
+damit unabhängig von einer fest eingetragenen Samplingrate berechnet werden.
 
-## Mehrere und logarithmische Parameter
+## Mehrere und logarithmische Regler
 
 Für Frequenzen ist eine logarithmische Reglerskala sinnvoll:
 
 ```python
-cutoff = Parameter(
+cutoff = slider(
     "Cutoff",
-    1_000,
-    20,
-    20_000,
+    value=1_000,
+    minimum=20,
+    maximum=20_000,
     scale="log",
     unit="Hz",
     decimals=0,
 )
 ```
 
-Mehrere Parameter werden gemeinsam angezeigt:
+Mehrere Regler werden als Liste an die Wiedergabe übergeben:
 
 ```python
-show_controls(cutoff, resonance, title="Lowpass")
+play_file(
+    "audio/example_stereo.wav",
+    process,
+    controls=[cutoff, resonance],
+    title="Lowpass",
+)
 ```
 
-`Parameter` begrenzt den Wert automatisch auf `minimum` bis `maximum`. Eine Parametersprung wird absichtlich nicht automatisch geglättet: Ob und wie geglättet wird, gehört zum DSP-Algorithmus und kann später selbst untersucht werden.
+`slider(...)` begrenzt seinen Wert automatisch auf `minimum` bis `maximum`.
+Parametersprünge werden absichtlich nicht geglättet: Ob und wie geglättet
+wird, gehört zum DSP-Algorithmus und kann später untersucht werden.
 
 ## Live-Eingang
 
-Dieselbe `process()`-Idee funktioniert mit Mikrofon, Gitarre oder Audiointerface:
+Dieselbe `process(...)`-Idee funktioniert mit Mikrofon, Gitarre oder
+Audiointerface:
 
 ```python
-from dspplay import LiveInput, Parameter, show_controls
-
-gain = Parameter("Gain", 0.25, 0.0, 1.0)
+from dspplay import play_input, slider
 
 
-def process(block):
+gain = slider("Gain", 0.25, 0.0, 1.0)
+
+
+def process(block, fs):
     return gain.value * block
 
 
-with LiveInput(process, samplerate=48_000, channels=1) as player:
-    show_controls(gain, title="Live gain", check=player.check)
+play_input(
+    process,
+    controls=[gain],
+    samplerate=48_000,
+    channels=1,
+    title="Live-Gain",
+)
 ```
 
-Beim Live-Betrieb zuerst Kopfhörer und einen niedrigen Ausgangspegel verwenden. Lautsprecher und Mikrofon können unmittelbar eine Rückkopplung erzeugen.
+Beim Live-Betrieb zuerst Kopfhörer und einen niedrigen Ausgangspegel
+verwenden. Lautsprecher und Mikrofon können unmittelbar eine Rückkopplung
+erzeugen.
+
+## Blockübergreifender Zustand
+
+Während einer Wiedergabe ruft `dspplay` immer denselben Prozessor mit
+aufeinanderfolgenden Blöcken auf. Ein ausserhalb von `process(...)` angelegter
+Filter-, Delay- oder LFO-Zustand bleibt deshalb zwischen den Aufrufen erhalten.
+`dspplay` setzt diesen Zustand nicht an jeder Blockgrenze zurück.
+
+Die konkrete, anfängerfreundliche Schreibweise für solche Zustände wird
+zusammen mit den ersten zustandsbehafteten Algorithmen im Kurs festgelegt. Für
+die Bibliothek gilt bereits jetzt:
+
+- Blöcke werden der Reihe nach verarbeitet.
+- Der Prozessor wird während einer Wiedergabe nicht ersetzt.
+- Ein neuer Aufruf von `play_file(...)` oder `play_input(...)` erzeugt einen
+  neuen Audiostream.
+- Der Zustand gehört dem Prozessor; `dspplay` verändert ihn nicht selbständig.
 
 ## Audiogeräte auswählen
 
@@ -122,13 +211,17 @@ list_devices()
 Danach kann ein Gerätename oder eine Gerätenummer übergeben werden:
 
 ```python
-FileLoop("audio/drums.wav", process, device="MacBook Pro Speakers")
+play_file(
+    "audio/example_stereo.wav",
+    process,
+    device="MacBook Pro Speakers",
+)
 ```
 
 Für getrennte Ein- und Ausgänge:
 
 ```python
-LiveInput(process, device=(2, 5))
+play_input(process, device=(2, 5))
 ```
 
 ## Blockgrösse und Latenz
@@ -139,75 +232,83 @@ $$
 \frac{256}{48\,000} \approx 5.3\,\text{ms}.
 $$
 
-Das ist nur ein Teil der gesamten Ein-/Ausgangslatenz. Audiotreiber und Hardwarepuffer kommen hinzu.
+Das ist nur ein Teil der gesamten Ein-/Ausgangslatenz. Audiotreiber und
+Hardwarepuffer kommen hinzu.
 
 Bei Knacksern oder Aussetzern zuerst eine grössere Blockgrösse wählen:
 
 ```python
-LiveInput(process, blocksize=512)
+play_input(process, blocksize=512)
 ```
 
 Falls nötig kann zusätzlich eine robustere Gerätelatenz verlangt werden:
 
 ```python
-LiveInput(process, blocksize=512, latency="high")
+play_input(process, blocksize=512, latency="high")
 ```
 
-Der zuletzt gemeldete Unter- oder Überlauf steht in `player.last_status`; die ungefähre Callback-Auslastung in `player.cpu_load`.
-
-## Regeln für `process()`
+## Regeln für `process(...)`
 
 Die Funktion läuft im Audiothread und muss vor dem nächsten Block fertig sein.
 
 - Keine Dateien öffnen, lesen oder schreiben.
 - Kein `print()` pro Audioblock.
-- Keine Fenster oder Plots aus `process()` heraus öffnen.
+- Keine Fenster oder Plots aus `process(...)` heraus öffnen.
 - Keine langen Python-Schleifen; möglichst NumPy-Operationen verwenden.
-- Zustände wie Filterverzögerungen ausserhalb der Funktion anlegen und zwischen den Blöcken erhalten.
+- Filter-, Delay- und andere Zustände zwischen den Blöcken erhalten.
 - Immer ein Array mit derselben Form wie der Eingangsblock zurückgeben.
 
-Ein Fehler in `process()` stoppt den Stream und wird über `player.check()` wieder im Hauptprogramm ausgelöst. `show_controls(..., check=player.check)` prüft dies automatisch.
+Ein Fehler in `process(...)` stoppt den Stream. Auch nicht endliche Werte,
+eine falsche Arrayform und ein Peak über `max_peak` werden als Fehler an das
+Hauptprogramm zurückgegeben.
 
-## Offline und realtime mit derselben Funktion
+## Offline und Echtzeit
 
-Eine zustandslose Funktion kann unverändert offline verwendet werden:
+Eine zustandslose Funktion kann unverändert auf ein vollständiges Signal oder
+auf fortlaufende Blöcke angewandt werden:
 
 ```python
 import soundfile as sf
-import sounddevice as sd
 
-x, fs = sf.read("audio/drums.wav", dtype="float32", always_2d=True)
+from dspplay import play_file, play_signal
 
-y = process(x)
 
-sf.write("output/drums-processed.wav", y, fs)
+def process(block, fs):
+    return 0.5 * block
 
-sd.play(y, fs)
-sd.wait()
+
+x, fs = sf.read("audio/example_stereo.wav")
+y = process(x, fs)
+
+play_signal(y, fs)
+play_file("audio/example_stereo.wav", process)
 ```
 
-Abspielen mit `sd.play(...)` oder abspeichern mit `sf.write(...)` bleiben also weiterhin möglich. Realtime ergänzt dies dort, wo unmittelbares Hören beim Experimentieren hilfreich ist.
-
-Bei zustandsbehafteten Algorithmen muss definiert sein, wann ihr Zustand zurückgesetzt wird. Das ist sowohl offline als auch realtime dieselbe DSP-Frage.
+Bei zustandsbehafteten Algorithmen muss zusätzlich definiert sein, wann der
+Zustand initialisiert oder zurückgesetzt wird. Dieselbe Frage stellt sich auch
+bei blockweiser Offline-Verarbeitung.
 
 ## Pedalboard später ergänzen
 
-Pedalboard kann später innerhalb von `process()` verwendet werden. Die Array-Achsen sind dabei zu beachten: `dspplay` und `sounddevice` verwenden `(frames, channels)`, Pedalboard üblicherweise `(channels, frames)`.
+Pedalboard kann später innerhalb von `process(...)` verwendet werden. Die
+Arrayachsen sind dabei zu beachten: `dspplay` verwendet für Mehrkanalaudio
+`(frames, channels)`, Pedalboard üblicherweise `(channels, frames)`.
 
 Konzeptionell:
 
 ```python
-def process(block):
+def process(block, fs):
     plugin_input = block.T
     plugin_output = plugin(plugin_input, fs, reset=False)
     return plugin_output.T
 ```
 
-`reset=False` erhält den Pluginzustand zwischen aufeinanderfolgenden Blöcken. Damit kann die Realtime-Hülle später dieselbe bleiben, während Pedalboard-Effekte, VST3- oder Audio-Unit-Plugins als zusätzliche Prozessoren dazukommen.
+`reset=False` erhält den Pluginzustand zwischen aufeinanderfolgenden Blöcken.
+Für Mono benötigt ein späterer Adapter zusätzlich die passende Formumwandlung.
 
 ## Enthaltene Beispiele
 
-- `examples/gain_file.py`: Gain auf einem WAV-Loop
+- `examples/gain_file.py`: Gain auf einem Datei-Loop
 - `examples/saturation_file.py`: zwei Regler und logarithmische Skalierung
 - `examples/gain_live.py`: Live-Eingang zu Ausgang
 
@@ -219,11 +320,13 @@ uv run python examples/gain_file.py
 
 ## Noch bewusst offen
 
-Dieser erste Entwurf enthält noch keine automatische Parameterglättung, keinen Bypass, keine Pegelanzeige, keine Aufzeichnung und keinen sicheren Adapter für beliebige Pedalboard-Plugins. Diese Punkte sollten erst ergänzt werden, nachdem die Grundform `block -> process(block) -> output` im Kurs praktisch erprobt wurde.
+Der zweite Entwurf enthält noch keine automatische Parameterglättung, keinen
+Bypass, keine Pegelanzeige, keine Aufzeichnung und keinen sicheren Adapter für
+beliebige Pedalboard-Plugins. Ebenfalls offen sind der Verteilungsweg an die
+Studierenden und ein gemeinsames Audio-Testfile.
 
 ## Technische Grundlage
 
 - [sounddevice: Streams using NumPy Arrays](https://python-sounddevice.readthedocs.io/en/latest/api/streams.html)
 - [SoundFile documentation](https://python-soundfile.readthedocs.io/en/latest/)
 - [Pedalboard API](https://spotify.github.io/pedalboard/reference/pedalboard.html)
-

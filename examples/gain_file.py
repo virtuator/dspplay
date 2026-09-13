@@ -1,11 +1,15 @@
-from dspplay import FileLoop, Parameter, show_controls
+from dspplay import play_file, slider
 
-gain = Parameter("Gain", 0.5, 0.0, 2.0, decimals=2)
+gain = slider("Gain", 0.5, 0.0, 1.0, decimals=2)
 
 
-def process(block):
+def process(block, fs):
     return gain.value * block
 
 
-with FileLoop("audio/drums.wav", process) as player:
-    show_controls(gain, title="Gain", check=player.check)
+play_file(
+    "audio/example_stereo.wav",
+    process,
+    controls=[gain],
+    title="Gain",
+)

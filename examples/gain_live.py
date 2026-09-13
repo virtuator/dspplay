@@ -1,12 +1,16 @@
-from dspplay import LiveInput, Parameter, show_controls
+from dspplay import play_input, slider
 
-gain = Parameter("Gain", 0.25, 0.0, 1.0, decimals=2)
+gain = slider("Gain", 0.25, 0.0, 1.0, decimals=2)
 
 
-def process(block):
+def process(block, fs):
     return gain.value * block
 
 
 # Use headphones and begin with a low output level to avoid feedback.
-with LiveInput(process, channels=1) as player:
-    show_controls(gain, title="Live gain", check=player.check)
+play_input(
+    process,
+    controls=[gain],
+    channels=1,
+    title="Live gain",
+)

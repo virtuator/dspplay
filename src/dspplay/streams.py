@@ -9,6 +9,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from .errors import SignalSafetyError
+
 AudioBlock = NDArray[np.float32]
 Processor = Callable[[AudioBlock, float], AudioBlock]
 
@@ -48,20 +50,22 @@ def _copy_processed(
     course_block = _course_block(block)
     result = np.asarray(process(course_block, samplerate))
     if result.shape != course_block.shape:
-        raise ValueError(
-            "process(block) returned shape "
-            f"{result.shape}; expected {course_block.shape}"
+        raise SignalSafetyError(
+            "Die Verarbeitung lieferte die Form "
+            f"{result.shape}; erwartet wird {course_block.shape}."
         )
     if not np.issubdtype(result.dtype, np.number) or np.iscomplexobj(result):
-        raise TypeError("process(block, fs) must return real numeric audio data")
+        raise SignalSafetyError(
+            "Die Verarbeitung muss reelle numerische Audiodaten zurückgeben."
+        )
     if not np.all(np.isfinite(result)):
-        raise ValueError("process(block, fs) returned NaN or infinite values")
+        raise SignalSafetyError("Die Verarbeitung lieferte NaN oder unendliche Werte.")
 
     peak = float(np.max(np.abs(result), initial=0.0))
     if peak > max_peak:
-        raise ValueError(
-            f"process(block, fs) returned peak {peak:.3f}; "
-            f"the allowed maximum is {max_peak:.3f}"
+        raise SignalSafetyError(
+            f"Der Peak {peak:.3f} überschreitet den erlaubten "
+            f"Maximalwert {max_peak:.3f}. Verringere den Pegel ausdrücklich."
         )
 
     if outdata.shape[1] == 1:

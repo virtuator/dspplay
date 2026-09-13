@@ -52,7 +52,16 @@ Die Funktion wartet bis zum Ende der Wiedergabe. Vorher prüft sie:
 - Peak innerhalb des erlaubten Bereichs
 
 Ein kritisches Signal wird nicht heimlich normalisiert oder begrenzt. Die
-Wiedergabe wird mit einer verständlichen Fehlermeldung verweigert.
+Wiedergabe wird mit einer kurzen Meldung ohne Traceback verweigert:
+
+```text
+Wiedergabe abgebrochen: Der Peak 1.100 überschreitet den erlaubten Maximalwert 1.000. Verringere den Pegel ausdrücklich.
+```
+
+`play_signal(...)` gibt in diesem Fall `False`, nach erfolgreicher Wiedergabe
+`True` zurück. Für den normalen Kursgebrauch muss dieser Rückgabewert nicht
+ausgewertet werden. Unerwartete Programm- und Audiogerätefehler bleiben echte
+Python-Ausnahmen mit Traceback.
 
 ## Eine Datei in Echtzeit bearbeiten
 

@@ -58,7 +58,7 @@ def test_wrong_output_shape_is_explained():
     block = np.ones((4, 2), dtype=np.float32)
     output = np.empty_like(block)
 
-    with pytest.raises(ValueError, match="expected"):
+    with pytest.raises(ValueError, match="erwartet"):
         _copy_processed(lambda x, fs: x[:, 0], block, output, 48_000)
 
 
@@ -66,7 +66,7 @@ def test_non_finite_output_is_rejected():
     block = np.ones((4, 1), dtype=np.float32)
     output = np.empty_like(block)
 
-    with pytest.raises(ValueError, match="NaN or infinite"):
+    with pytest.raises(ValueError, match="NaN oder unendliche"):
         _copy_processed(lambda x, fs: x * np.nan, block, output, 48_000)
 
 
@@ -74,5 +74,5 @@ def test_unsafe_peak_is_rejected():
     block = np.ones((4, 1), dtype=np.float32)
     output = np.empty_like(block)
 
-    with pytest.raises(ValueError, match="allowed maximum"):
+    with pytest.raises(ValueError, match="Maximalwert"):
         _copy_processed(lambda x, fs: 1.1 * x, block, output, 48_000)

@@ -18,10 +18,10 @@ def test_signal_validation_accepts_course_shapes():
 @pytest.mark.parametrize(
     ("audio", "message"),
     [
-        (np.zeros((2, 2, 2)), "shape"),
-        (np.array([]), "empty"),
+        (np.zeros((2, 2, 2)), "Form"),
+        (np.array([]), "leer"),
         (np.array([np.nan]), "NaN"),
-        (np.array([1.01]), "allowed maximum"),
+        (np.array([1.01]), "Maximalwert"),
     ],
 )
 def test_signal_validation_rejects_unsafe_audio(audio, message):
@@ -43,9 +43,20 @@ def test_play_signal_uses_sounddevice_and_waits(monkeypatch):
     monkeypatch.setattr("dspplay.playback._sounddevice", lambda: fake_sounddevice)
 
     signal = np.array([0.0, 0.5, -0.5])
-    play_signal(signal, 48_000, device="output")
+    played = play_signal(signal, 48_000, device="output")
 
+    assert played is True
     assert calls[0][0] == "play"
     np.testing.assert_array_equal(calls[0][1], signal)
     assert calls[0][2:] == (48_000, "output")
     assert calls[1] == ("wait",)
+
+
+def test_play_signal_reports_rejection_without_traceback(capsys):
+    played = play_signal(np.array([1.1]), 48_000)
+
+    assert played is False
+    assert capsys.readouterr().out == (
+        "Wiedergabe abgebrochen: Der Peak 1.100 überschreitet den erlaubten "
+        "Maximalwert 1.000. Verringere den Pegel ausdrücklich.\n"
+    )

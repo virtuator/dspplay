@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from .controls import Parameter, show_controls
+from .errors import SignalSafetyError
 from .streams import FileLoop, LiveInput, Processor, _RealtimeStream, _sounddevice
 
 
@@ -20,23 +21,23 @@ def _validated_signal(
     data = np.asarray(signal)
 
     if data.ndim not in {1, 2}:
-        raise ValueError("audio must have shape (frames,) or (frames, channels)")
+        raise SignalSafetyError("Das Signal muss die Form (N,) oder (N, Kanäle) haben.")
     if data.shape[0] == 0 or (data.ndim == 2 and data.shape[1] == 0):
-        raise ValueError("audio must not be empty")
+        raise SignalSafetyError("Das Signal ist leer.")
     if not np.issubdtype(data.dtype, np.number) or np.iscomplexobj(data):
-        raise TypeError("audio must contain real numeric values")
+        raise SignalSafetyError("Das Signal muss reelle numerische Werte enthalten.")
     if not np.all(np.isfinite(data)):
-        raise ValueError("audio contains NaN or infinite values")
+        raise SignalSafetyError("Das Signal enthält NaN oder unendliche Werte.")
     if not np.isfinite(samplerate) or samplerate <= 0:
-        raise ValueError("fs must be a positive finite sampling rate")
+        raise SignalSafetyError("fs muss eine positive endliche Samplingrate sein.")
     if not np.isfinite(max_peak) or max_peak <= 0:
         raise ValueError("max_peak must be a positive finite number")
 
     peak = float(np.max(np.abs(data), initial=0.0))
     if peak > max_peak:
-        raise ValueError(
-            f"audio peak is {peak:.3f}; the allowed maximum is {max_peak:.3f}. "
-            "Reduce the level explicitly before playback."
+        raise SignalSafetyError(
+            f"Der Peak {peak:.3f} überschreitet den erlaubten "
+            f"Maximalwert {max_peak:.3f}. Verringere den Pegel ausdrücklich."
         )
 
     return data, float(samplerate)
@@ -48,31 +49,44 @@ def play_signal(
     *,
     device: int | str | None = None,
     max_peak: float = 1.0,
-) -> None:
+) -> bool:
     """Validate and play a complete mono or multichannel signal safely."""
 
-    data, samplerate = _validated_signal(signal, fs, max_peak)
+    try:
+        data, samplerate = _validated_signal(signal, fs, max_peak)
+    except SignalSafetyError as error:
+        print(f"Wiedergabe abgebrochen: {error}")
+        return False
+
     sd = _sounddevice()
     sd.play(data, samplerate, device=device)
     sd.wait()
+    return True
 
 
 def _run_stream(
     stream: _RealtimeStream,
     controls: Sequence[Parameter] | None,
     title: str,
-) -> None:
+) -> bool:
     parameters = tuple(controls or ())
 
-    with stream:
-        if parameters:
-            show_controls(*parameters, title=title, check=stream.check)
-            return
+    try:
+        with stream:
+            if parameters:
+                show_controls(*parameters, title=title, check=stream.check)
+            else:
+                try:
+                    input("Audio läuft. Drücke Enter zum Beenden ... ")
+                except KeyboardInterrupt:
+                    pass
+    except RuntimeError as error:
+        if isinstance(error.__cause__, SignalSafetyError):
+            print(f"Wiedergabe abgebrochen: {error.__cause__}")
+            return False
+        raise
 
-        try:
-            input("Audio läuft. Drücke Enter zum Beenden ... ")
-        except KeyboardInterrupt:
-            pass
+    return True
 
 
 def play_file(
@@ -85,7 +99,7 @@ def play_file(
     device: int | str | None = None,
     latency: float | str | None = "low",
     max_peak: float = 1.0,
-) -> None:
+) -> bool:
     """Process a sound file block by block and play it repeatedly."""
 
     stream = FileLoop(
@@ -96,7 +110,7 @@ def play_file(
         latency=latency,
         max_peak=max_peak,
     )
-    _run_stream(stream, controls, title)
+    return _run_stream(stream, controls, title)
 
 
 def play_input(
@@ -110,7 +124,7 @@ def play_input(
     device: int | str | tuple[int | str | None, int | str | None] | None = None,
     latency: float | str | tuple[float | str, float | str] | None = "low",
     max_peak: float = 1.0,
-) -> None:
+) -> bool:
     """Process an audio input block by block and play the result."""
 
     stream = LiveInput(
@@ -122,4 +136,4 @@ def play_input(
         latency=latency,
         max_peak=max_peak,
     )
-    _run_stream(stream, controls, title)
+    return _run_stream(stream, controls, title)

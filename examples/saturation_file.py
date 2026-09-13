@@ -11,7 +11,7 @@ def process(block, fs):
 
 
 play_file(
-    "audio/example_stereo.wav",
+    "../audio/example_stereo.wav",
     process,
     controls=[drive, output],
     title="Saturation",

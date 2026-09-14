@@ -17,15 +17,33 @@ def process(block, fs):
     return 0.5 * block
 ```
 
-## Installation
+## Install from GitHub
 
-For development in the `dspplay` directory:
+Add the latest version from GitHub to an existing `uv` project:
 
 ```bash
+uv add git+https://github.com/virtuator/dspplay.git
+```
+
+Then import the library in Python:
+
+```python
+import dspplay as dp
+```
+
+## Development
+
+To work on `dspplay` itself, clone the repository and create its development
+environment:
+
+```bash
+git clone https://github.com/virtuator/dspplay.git
+cd dspplay
 uv sync
 ```
 
-To add a local checkout to another project as an editable dependency:
+To use that local checkout from another `uv` project while developing, add it
+as an editable dependency:
 
 ```bash
 uv add --editable ../dspplay

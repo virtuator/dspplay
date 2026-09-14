@@ -1,4 +1,4 @@
-"""Exceptions used for expected, course-facing playback rejections."""
+"""Exceptions used for expected playback rejections."""
 
 
 class SignalSafetyError(ValueError):

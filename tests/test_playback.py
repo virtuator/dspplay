@@ -5,7 +5,7 @@ from dspplay import play_signal
 from dspplay.playback import _validated_signal
 
 
-def test_signal_validation_accepts_course_shapes():
+def test_signal_validation_accepts_public_shapes():
     mono, mono_fs = _validated_signal(np.zeros(8), 48_000, 1.0)
     stereo, stereo_fs = _validated_signal(np.zeros((8, 2)), 44_100, 1.0)
 
@@ -18,10 +18,10 @@ def test_signal_validation_accepts_course_shapes():
 @pytest.mark.parametrize(
     ("audio", "message"),
     [
-        (np.zeros((2, 2, 2)), "Form"),
-        (np.array([]), "leer"),
+        (np.zeros((2, 2, 2)), "shape"),
+        (np.array([]), "empty"),
         (np.array([np.nan]), "NaN"),
-        (np.array([1.01]), "Maximalwert"),
+        (np.array([1.01]), "allowed maximum"),
     ],
 )
 def test_signal_validation_rejects_unsafe_audio(audio, message):
@@ -57,6 +57,6 @@ def test_play_signal_reports_rejection_without_traceback(capsys):
 
     assert played is False
     assert capsys.readouterr().out == (
-        "Wiedergabe abgebrochen: Der Peak 1.100 überschreitet den erlaubten "
-        "Maximalwert 1.000. Verringere den Pegel ausdrücklich.\n"
+        "Playback stopped: Peak 1.100 exceeds the allowed maximum of 1.000. "
+        "Reduce the level explicitly before playback.\n"
     )

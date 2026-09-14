@@ -1,4 +1,4 @@
-"""Realtime streams that call a user-supplied ``process(block)`` function."""
+"""Realtime streams that call a user-supplied ``process(block, fs)`` function."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def list_devices() -> None:
     print(_sounddevice().query_devices())
 
 
-def _course_block(block: AudioBlock) -> AudioBlock:
+def _public_block(block: AudioBlock) -> AudioBlock:
     """Expose mono as 1-D while keeping multichannel audio sample-first."""
 
     if block.shape[1] == 1:
@@ -47,25 +47,22 @@ def _copy_processed(
     *,
     max_peak: float = 1.0,
 ) -> None:
-    course_block = _course_block(block)
-    result = np.asarray(process(course_block, samplerate))
-    if result.shape != course_block.shape:
+    public_block = _public_block(block)
+    result = np.asarray(process(public_block, samplerate))
+    if result.shape != public_block.shape:
         raise SignalSafetyError(
-            "Die Verarbeitung lieferte die Form "
-            f"{result.shape}; erwartet wird {course_block.shape}."
+            f"Processing returned shape {result.shape}; expected {public_block.shape}."
         )
     if not np.issubdtype(result.dtype, np.number) or np.iscomplexobj(result):
-        raise SignalSafetyError(
-            "Die Verarbeitung muss reelle numerische Audiodaten zurückgeben."
-        )
+        raise SignalSafetyError("Processing must return real numeric audio data.")
     if not np.all(np.isfinite(result)):
-        raise SignalSafetyError("Die Verarbeitung lieferte NaN oder unendliche Werte.")
+        raise SignalSafetyError("Processing returned NaN or infinite values.")
 
     peak = float(np.max(np.abs(result), initial=0.0))
     if peak > max_peak:
         raise SignalSafetyError(
-            f"Der Peak {peak:.3f} überschreitet den erlaubten "
-            f"Maximalwert {max_peak:.3f}. Verringere den Pegel ausdrücklich."
+            f"Peak {peak:.3f} exceeds the allowed maximum of {max_peak:.3f}. "
+            "Reduce the level explicitly before playback."
         )
 
     if outdata.shape[1] == 1:

@@ -1,4 +1,4 @@
-"""Small, dependency-free controls for course examples."""
+"""Small, dependency-free controls for real-time examples."""
 
 from __future__ import annotations
 
@@ -80,10 +80,10 @@ def slider(
     unit: str = "",
     decimals: int = 2,
 ) -> Parameter:
-    """Create a course-friendly slider parameter.
+    """Create a convenient slider parameter.
 
-    The lower-case factory keeps the beginner-facing API function-oriented.
-    ``Parameter`` remains available for advanced use and backwards compatibility.
+    The lower-case factory keeps the convenience API function-oriented.
+    ``Parameter`` remains available for direct use and backwards compatibility.
     """
 
     return Parameter(
@@ -104,8 +104,8 @@ def show_controls(
 ) -> None:
     """Show sliders and block until the window is closed.
 
-    Tkinter is part of the standard Python installation on most course
-    machines, so the control window adds no Python package dependency.
+    Tkinter is part of most standard Python installations, so the control
+    window adds no Python package dependency.
     """
 
     if not parameters:

@@ -1,44 +1,39 @@
 # dspplay
 
-`dspplay` ist eine kleine Echtzeit-Hülle für den Audio-DSP/Python-Kurs. Im
-Skript wird die Bibliothek einheitlich mit `dp` abgekürzt:
+`dspplay` is a small real-time audio wrapper for NumPy-based DSP experiments.
+It provides audio devices, block processing, file looping, guarded playback,
+and a minimal control window while keeping the signal-processing code visible.
+
+The library is conventionally imported as `dp`:
 
 ```python
 import dspplay as dp
 ```
 
-Die Studierenden schreiben weiterhin eine gewöhnliche Funktion:
+Write a regular processing function:
 
 ```python
 def process(block, fs):
     return 0.5 * block
 ```
 
-`dspplay` kümmert sich um Audiogerät, Audioblöcke, Datei-Loop, sichere
-Wiedergabe und ein minimales Reglerfenster. NumPy und die eigentliche
-Signalverarbeitung bleiben sichtbar.
-
 ## Installation
 
-Im Entwicklungsordner von `dspplay`:
+For development in the `dspplay` directory:
 
 ```bash
 uv sync
 ```
 
-Liegt `dspplay` direkt neben einem bestehenden Kursprojekt, kann es dort als
-editierbares Paket hinzugefügt werden:
+To add a local checkout to another project as an editable dependency:
 
 ```bash
 uv add --editable ../dspplay
 ```
 
-Wie die Bibliothek später an die Studierenden verteilt wird, ist noch nicht
-festgelegt.
+## Play a signal safely
 
-## Ein Signal sicher abspielen
-
-Ein bereits berechnetes Signal wird mit `play_signal(...)` abgespielt:
+Use `play_signal(...)` to play a computed signal:
 
 ```python
 import dspplay as dp
@@ -48,32 +43,31 @@ y = 0.5 * x
 dp.play_signal(y, fs)
 ```
 
-Die Funktion wartet bis zum Ende der Wiedergabe. Vorher prüft sie:
+The function waits until playback has ended. Before playback, it checks:
 
-- Monoform `(N,)` oder Mehrkanalform `(N, C)`
-- nicht leeres Array
-- reelle numerische Werte
-- keine `NaN`- oder unendlichen Werte
-- positive Samplingrate
-- Peak innerhalb des erlaubten Bereichs
+- mono shape `(N,)` or multichannel shape `(N, C)`
+- a non-empty array
+- real numeric values
+- no `NaN` or infinite values
+- a positive sample rate
+- a peak within the allowed range
 
-Ein kritisches Signal wird nicht heimlich normalisiert oder begrenzt. Die
-Wiedergabe wird mit einer kurzen Meldung ohne Traceback verweigert:
+Unsafe signals are not silently normalized or clipped. Playback is refused with
+a concise message and no traceback:
 
 ```text
-Wiedergabe abgebrochen: Der Peak 1.100 überschreitet den erlaubten Maximalwert 1.000. Verringere den Pegel ausdrücklich.
+Playback stopped: Peak 1.100 exceeds the allowed maximum of 1.000. Reduce the level explicitly before playback.
 ```
 
-`play_signal(...)` gibt in diesem Fall `False`, nach erfolgreicher Wiedergabe
-`True` zurück. Für den normalen Kursgebrauch muss dieser Rückgabewert nicht
-ausgewertet werden. Unerwartete Programm- und Audiogerätefehler bleiben echte
-Python-Ausnahmen mit Traceback.
+`play_signal(...)` returns `False` when playback is refused and `True` after
+successful playback. The return value can usually be ignored. Unexpected
+programming and audio-device errors remain regular Python exceptions with a
+traceback.
 
-## Eine Datei in Echtzeit bearbeiten
+## Process a file in real time
 
-Das folgende Beispiel spielt `audio/example_stereo.wav` als Loop. Beim
-Verschieben des Reglers verwendet bereits der nächste Audioblock den neuen
-Wert:
+This example loops `audio/example_stereo.wav`. Moving the control affects the
+next audio block:
 
 ```python
 import dspplay as dp
@@ -99,48 +93,49 @@ dp.play_file(
 )
 ```
 
-Die Studierenden müssen dafür weder einen Sounddevice-Callback noch einen
-Context Manager schreiben. Die fortgeschrittenen Klassen `FileLoop` und
-`LiveInput` bleiben verfügbar, sind aber nicht die normale Kursoberfläche.
+The higher-level `FileLoop` and `LiveInput` classes remain available when more
+control is needed, but `play_file(...)` and `play_input(...)` are the intended
+convenience API.
 
-## Das Datenmodell
+## Data model
 
-Die öffentliche Schnittstelle folgt derselben Konvention wie das Skript und
-das Standardverhalten von SoundFile:
+The public interface follows the same convention as SoundFile:
 
 ```text
 Mono:         (frames,)
-Mehrkanal:    (frames, channels)
+Multichannel: (frames, channels)
 ```
 
-Ein Stereoblock mit 256 Frames hat also `block.shape == (256, 2)`. Ein
-Monoblock derselben Länge hat `block.shape == (256,)`.
+A stereo block with 256 frames therefore has
+`block.shape == (256, 2)`. A mono block of the same length has
+`block.shape == (256,)`.
 
-Sounddevice verwendet intern auch für Mono eine zweidimensionale Form.
-`dspplay` wandelt diese Form an der Grenze zur Kursfunktion automatisch um.
-`process(...)` muss wieder ein Array derselben Form zurückgeben.
+Sounddevice uses a two-dimensional representation for mono internally.
+`dspplay` converts at the boundary before calling `process(...)`; the function
+must return an array with the same public shape.
 
-Die Echtzeitdaten verwenden `float32`. Der übliche Wertebereich liegt zwischen
-`-1.0` und `+1.0`.
+Real-time data uses `float32`. The usual sample range is from `-1.0` to `+1.0`.
 
-## Die Samplingrate
+## Sample rate
 
-`process(...)` erhält neben dem Block immer die Samplingrate `fs`:
+`process(...)` always receives the sample rate `fs` with its block:
 
 ```python
 def process(block, fs):
     return block
 ```
 
-Bei `play_file(...)` stammt `fs` aus der Audiodatei. Bei `play_input(...)` wird
-sie beim Start festgelegt. Filterkoeffizienten, Delayzeiten und LFOs können
-damit unabhängig von einer fest eingetragenen Samplingrate berechnet werden.
+For `play_file(...)`, `fs` comes from the audio file. For `play_input(...)`, it
+is chosen when the stream starts. This allows filter coefficients, delay times,
+and LFOs to be computed without a hard-coded sample rate.
 
-## Mehrere und logarithmische Regler
+## Multiple and logarithmic controls
 
-Für Frequenzen ist eine logarithmische Reglerskala sinnvoll:
+For frequencies, a logarithmic slider scale is usually appropriate:
 
 ```python
+import dspplay as dp
+
 cutoff = dp.slider(
     "Cutoff",
     value=1_000,
@@ -152,7 +147,7 @@ cutoff = dp.slider(
 )
 ```
 
-Mehrere Regler werden als Liste an die Wiedergabe übergeben:
+Pass multiple controls as a list:
 
 ```python
 dp.play_file(
@@ -163,14 +158,14 @@ dp.play_file(
 )
 ```
 
-`slider(...)` begrenzt seinen Wert automatisch auf `minimum` bis `maximum`.
-Parametersprünge werden absichtlich nicht geglättet: Ob und wie geglättet
-wird, gehört zum DSP-Algorithmus und kann später untersucht werden.
+`slider(...)` automatically constrains its value to `minimum` through
+`maximum`. Parameter changes are deliberately not smoothed; smoothing belongs
+to the DSP algorithm when it is needed.
 
-## Live-Eingang
+## Live input
 
-Dieselbe `process(...)`-Idee funktioniert mit Mikrofon, Gitarre oder
-Audiointerface:
+The same `process(...)` function can process a microphone, guitar, or audio
+interface input:
 
 ```python
 import dspplay as dp
@@ -188,34 +183,30 @@ dp.play_input(
     controls=[gain],
     samplerate=48_000,
     channels=1,
-    title="Live-Gain",
+    title="Live gain",
 )
 ```
 
-Beim Live-Betrieb zuerst Kopfhörer und einen niedrigen Ausgangspegel
-verwenden. Lautsprecher und Mikrofon können unmittelbar eine Rückkopplung
-erzeugen.
+Use headphones and begin with a low output level. A microphone and speakers can
+immediately create acoustic feedback.
 
-## Blockübergreifender Zustand
+## State across blocks
 
-Während einer Wiedergabe ruft `dspplay` immer denselben Prozessor mit
-aufeinanderfolgenden Blöcken auf. Ein ausserhalb von `process(...)` angelegter
-Filter-, Delay- oder LFO-Zustand bleibt deshalb zwischen den Aufrufen erhalten.
-`dspplay` setzt diesen Zustand nicht an jeder Blockgrenze zurück.
+During playback, `dspplay` calls the same processor for consecutive blocks.
+Filter, delay, or LFO state created outside `process(...)` therefore remains
+available between calls. `dspplay` does not reset it at block boundaries.
 
-Die konkrete, anfängerfreundliche Schreibweise für solche Zustände wird
-zusammen mit den ersten zustandsbehafteten Algorithmen im Kurs festgelegt. Für
-die Bibliothek gilt bereits jetzt:
+The following rules apply:
 
-- Blöcke werden der Reihe nach verarbeitet.
-- Der Prozessor wird während einer Wiedergabe nicht ersetzt.
-- Ein neuer Aufruf von `play_file(...)` oder `play_input(...)` erzeugt einen
-  neuen Audiostream.
-- Der Zustand gehört dem Prozessor; `dspplay` verändert ihn nicht selbständig.
+- Blocks are processed in order.
+- The processor is not replaced during playback.
+- Each call to `play_file(...)` or `play_input(...)` creates a new audio
+  stream.
+- State belongs to the processor; `dspplay` does not modify it.
 
-## Audiogeräte auswählen
+## Select audio devices
 
-Die verfügbaren Geräte lassen sich anzeigen mit:
+List available devices with:
 
 ```python
 import dspplay as dp
@@ -223,7 +214,7 @@ import dspplay as dp
 dp.list_devices()
 ```
 
-Danach kann ein Gerätename oder eine Gerätenummer übergeben werden:
+Then pass a device name or number:
 
 ```python
 dp.play_file(
@@ -233,54 +224,53 @@ dp.play_file(
 )
 ```
 
-Für getrennte Ein- und Ausgänge:
+For distinct input and output devices:
 
 ```python
 dp.play_input(process, device=(2, 5))
 ```
 
-## Blockgrösse und Latenz
+## Block size and latency
 
-Der Standardwert ist `blocksize=256`. Bei 48 kHz entspricht ein Block
+The default `blocksize` is 256. At 48 kHz, one block corresponds to
 
 $$
 \frac{256}{48\,000} \approx 5.3\,\text{ms}.
 $$
 
-Das ist nur ein Teil der gesamten Ein-/Ausgangslatenz. Audiotreiber und
-Hardwarepuffer kommen hinzu.
+This is only one part of total input/output latency; audio drivers and hardware
+buffers add more latency.
 
-Bei Knacksern oder Aussetzern zuerst eine grössere Blockgrösse wählen:
+If you hear dropouts or clicks, first choose a larger block size:
 
 ```python
 dp.play_input(process, blocksize=512)
 ```
 
-Falls nötig kann zusätzlich eine robustere Gerätelatenz verlangt werden:
+If needed, request a more robust device latency:
 
 ```python
 dp.play_input(process, blocksize=512, latency="high")
 ```
 
-## Regeln für `process(...)`
+## Rules for `process(...)`
 
-Die Funktion läuft im Audiothread und muss vor dem nächsten Block fertig sein.
+The function runs in the audio thread and must finish before the next block.
 
-- Keine Dateien öffnen, lesen oder schreiben.
-- Kein `print()` pro Audioblock.
-- Keine Fenster oder Plots aus `process(...)` heraus öffnen.
-- Keine langen Python-Schleifen; möglichst NumPy-Operationen verwenden.
-- Filter-, Delay- und andere Zustände zwischen den Blöcken erhalten.
-- Immer ein Array mit derselben Form wie der Eingangsblock zurückgeben.
+- Do not open, read, or write files.
+- Do not call `print()` for every audio block.
+- Do not open windows or plots from inside `process(...)`.
+- Avoid long Python loops; prefer NumPy operations.
+- Preserve filter, delay, and other state between blocks.
+- Always return an array with the same shape as the input block.
 
-Ein Fehler in `process(...)` stoppt den Stream. Auch nicht endliche Werte,
-eine falsche Arrayform und ein Peak über `max_peak` werden als Fehler an das
-Hauptprogramm zurückgegeben.
+An error in `process(...)` stops the stream. Non-finite values, a wrong array
+shape, and a peak above `max_peak` are also reported to the main program.
 
-## Offline und Echtzeit
+## Offline and real time
 
-Eine zustandslose Funktion kann unverändert auf ein vollständiges Signal oder
-auf fortlaufende Blöcke angewandt werden:
+A stateless function can be applied unchanged to a complete signal or to
+consecutive blocks:
 
 ```python
 import soundfile as sf
@@ -298,17 +288,16 @@ dp.play_signal(y, fs)
 dp.play_file("audio/example_stereo.wav", process)
 ```
 
-Bei zustandsbehafteten Algorithmen muss zusätzlich definiert sein, wann der
-Zustand initialisiert oder zurückgesetzt wird. Dieselbe Frage stellt sich auch
-bei blockweiser Offline-Verarbeitung.
+For stateful algorithms, define when state is initialized or reset. The same
+question applies to blockwise offline processing.
 
-## Pedalboard später ergänzen
+## Pedalboard integration
 
-Pedalboard kann später innerhalb von `process(...)` verwendet werden. Die
-Arrayachsen sind dabei zu beachten: `dspplay` verwendet für Mehrkanalaudio
-`(frames, channels)`, Pedalboard üblicherweise `(channels, frames)`.
+Pedalboard can be used inside `process(...)`. Take care with array axes:
+`dspplay` uses `(frames, channels)` for multichannel audio, while Pedalboard
+usually uses `(channels, frames)`.
 
-Konzeptionell:
+Conceptually:
 
 ```python
 def process(block, fs):
@@ -317,29 +306,29 @@ def process(block, fs):
     return plugin_output.T
 ```
 
-`reset=False` erhält den Pluginzustand zwischen aufeinanderfolgenden Blöcken.
-Für Mono benötigt ein späterer Adapter zusätzlich die passende Formumwandlung.
+`reset=False` preserves plugin state across consecutive blocks. Mono requires
+an additional shape conversion in a future adapter.
 
-## Enthaltene Beispiele
+## Included examples
 
-- `examples/gain_file.py`: Gain auf einem Datei-Loop
-- `examples/saturation_file.py`: zwei Regler und logarithmische Skalierung
-- `examples/gain_live.py`: Live-Eingang zu Ausgang
+- `examples/signal_playback.py`: safe playback of a generated sine signal
+- `examples/gain_file.py`: gain on a file loop
+- `examples/saturation_file.py`: two controls and logarithmic scaling
+- `examples/gain_live.py`: live input to output
 
-Die Beispiele werden aus dem Projektordner gestartet:
+Run an example from the project directory:
 
 ```bash
 uv run python examples/gain_file.py
 ```
 
-## Noch bewusst offen
+## Deliberately not included yet
 
-Der zweite Entwurf enthält noch keine automatische Parameterglättung, keinen
-Bypass, keine Pegelanzeige, keine Aufzeichnung und keinen sicheren Adapter für
-beliebige Pedalboard-Plugins. Ebenfalls offen sind der Verteilungsweg an die
-Studierenden und ein gemeinsames Audio-Testfile.
+This version does not include automatic parameter smoothing, bypass, level
+metering, recording, or a safe adapter for arbitrary Pedalboard plugins. A
+freely distributable shared audio example is also not included.
 
-## Technische Grundlage
+## Technical foundations
 
 - [sounddevice: Streams using NumPy Arrays](https://python-sounddevice.readthedocs.io/en/latest/api/streams.html)
 - [SoundFile documentation](https://python-soundfile.readthedocs.io/en/latest/)

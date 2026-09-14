@@ -99,7 +99,7 @@ def slider(
 
 def show_controls(
     *parameters: Parameter,
-    title: str = "dspplay",
+    title: str = "DspPlay",
     check: Callable[[], None] | None = None,
 ) -> None:
     """Show sliders and block until the window is closed.

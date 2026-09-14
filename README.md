@@ -1,6 +1,6 @@
-# dspplay
+# DspPlay
 
-`dspplay` is a small real-time audio wrapper for NumPy-based DSP experiments.
+DspPlay is a small real-time audio wrapper for NumPy-based DSP experiments.
 It provides audio devices, block processing, file looping, guarded playback,
 and a minimal control window while keeping the signal-processing code visible.
 
@@ -33,7 +33,7 @@ import dspplay as dp
 
 ## Development
 
-To work on `dspplay` itself, clone the repository and create its development
+To work on DspPlay itself, clone the repository and create its development
 environment:
 
 ```bash
@@ -129,7 +129,7 @@ A stereo block with 256 frames therefore has
 `block.shape == (256,)`.
 
 Sounddevice uses a two-dimensional representation for mono internally.
-`dspplay` converts at the boundary before calling `process(...)`; the function
+DspPlay converts at the boundary before calling `process(...)`; the function
 must return an array with the same public shape.
 
 Real-time data uses `float32`. The usual sample range is from `-1.0` to `+1.0`.
@@ -210,9 +210,9 @@ immediately create acoustic feedback.
 
 ## State across blocks
 
-During playback, `dspplay` calls the same processor for consecutive blocks.
+During playback, DspPlay calls the same processor for consecutive blocks.
 Filter, delay, or LFO state created outside `process(...)` therefore remains
-available between calls. `dspplay` does not reset it at block boundaries.
+available between calls. DspPlay does not reset it at block boundaries.
 
 The following rules apply:
 
@@ -220,7 +220,7 @@ The following rules apply:
 - The processor is not replaced during playback.
 - Each call to `play_file(...)` or `play_input(...)` creates a new audio
   stream.
-- State belongs to the processor; `dspplay` does not modify it.
+- State belongs to the processor; DspPlay does not modify it.
 
 ## Select audio devices
 
@@ -312,7 +312,7 @@ question applies to blockwise offline processing.
 ## Pedalboard integration
 
 Pedalboard can be used inside `process(...)`. Take care with array axes:
-`dspplay` uses `(frames, channels)` for multichannel audio, while Pedalboard
+DspPlay uses `(frames, channels)` for multichannel audio, while Pedalboard
 usually uses `(channels, frames)`.
 
 Conceptually:

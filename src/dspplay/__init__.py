@@ -2,18 +2,20 @@
 
 from .controls import Parameter, show_controls, slider
 from .errors import SignalSafetyError
-from .playback import play_file, play_input, play_signal
-from .streams import FileLoop, LiveInput, list_devices
+from .playback import play, play_file, play_input, play_loop
+from .streams import ArrayLoop, FileLoop, LiveInput, list_devices
 
 __all__ = [
+    "ArrayLoop",
     "FileLoop",
     "LiveInput",
     "Parameter",
     "SignalSafetyError",
     "list_devices",
+    "play",
     "play_file",
     "play_input",
-    "play_signal",
+    "play_loop",
     "show_controls",
     "slider",
 ]

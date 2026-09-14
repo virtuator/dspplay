@@ -1,7 +1,7 @@
 [project]
 name = "dspplay"
-version = "0.2.0"
-description = "A small realtime audio playground for teaching DSP with Python"
+version = "0.3.0"
+description = "A small real-time audio playground for DSP with Python"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

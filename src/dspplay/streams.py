@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from .errors import SignalSafetyError
 
@@ -155,12 +155,13 @@ class _RealtimeStream:
         self.stop()
 
 
-class FileLoop(_RealtimeStream):
-    """Play a sound file in a loop and process each block before playback."""
+class ArrayLoop(_RealtimeStream):
+    """Play an array in a loop and process each block before playback."""
 
     def __init__(
         self,
-        path: str | Path,
+        signal: ArrayLike,
+        samplerate: float,
         process: Processor,
         *,
         blocksize: int = 256,
@@ -169,14 +170,25 @@ class FileLoop(_RealtimeStream):
         max_peak: float = 1.0,
     ) -> None:
         super().__init__(process, max_peak)
-        try:
-            import soundfile as sf
-        except ImportError as error:
-            raise RuntimeError(
-                "File playback needs soundfile. Install the project with `uv sync`."
-            ) from error
 
-        audio, samplerate = sf.read(path, dtype="float32", always_2d=True)
+        audio = np.asarray(signal)
+        if audio.ndim not in {1, 2}:
+            raise SignalSafetyError("Signal must have shape (N,) or (N, channels).")
+        if audio.shape[0] == 0 or (audio.ndim == 2 and audio.shape[1] == 0):
+            raise SignalSafetyError("Signal is empty.")
+        if not np.issubdtype(audio.dtype, np.number) or np.iscomplexobj(audio):
+            raise SignalSafetyError("Signal must contain real numeric values.")
+        if not np.all(np.isfinite(audio)):
+            raise SignalSafetyError("Signal contains NaN or infinite values.")
+        if not np.isfinite(samplerate) or samplerate <= 0:
+            raise SignalSafetyError("fs must be a positive finite sample rate.")
+
+        if audio.ndim == 1:
+            audio = audio[:, np.newaxis]
+        audio = np.asarray(audio, dtype=np.float32)
+        if not np.all(np.isfinite(audio)):
+            raise SignalSafetyError("Signal is outside the float32 range.")
+
         self.samplerate = float(samplerate)
         self.channels = int(audio.shape[1])
         self.blocksize = int(blocksize)
@@ -215,6 +227,38 @@ class FileLoop(_RealtimeStream):
             device=self.device,
             latency=self.latency,
             callback=callback,
+        )
+
+
+class FileLoop(ArrayLoop):
+    """Play a sound file in a loop and process each block before playback."""
+
+    def __init__(
+        self,
+        path: str | Path,
+        process: Processor,
+        *,
+        blocksize: int = 256,
+        device: int | str | None = None,
+        latency: float | str | None = "low",
+        max_peak: float = 1.0,
+    ) -> None:
+        try:
+            import soundfile as sf
+        except ImportError as error:
+            raise RuntimeError(
+                "File playback needs soundfile. Install the project with `uv sync`."
+            ) from error
+
+        audio, samplerate = sf.read(path, dtype="float32", always_2d=True)
+        super().__init__(
+            audio,
+            samplerate,
+            process,
+            blocksize=blocksize,
+            device=device,
+            latency=latency,
+            max_peak=max_peak,
         )
 
 

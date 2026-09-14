@@ -1,8 +1,9 @@
 # DspPlay
 
 DspPlay is a small real-time audio wrapper for NumPy-based DSP experiments.
-It provides audio devices, block processing, file looping, guarded playback,
-and a minimal control window while keeping the signal-processing code visible.
+It provides audio devices, block processing, array and file looping, guarded
+playback, and a minimal control window while keeping the signal-processing code
+visible.
 
 The library is conventionally imported as `dp`:
 
@@ -51,14 +52,14 @@ uv add --editable ../dspplay
 
 ## Play a signal safely
 
-Use `play_signal(...)` to play a computed signal:
+Use `play(...)` to play a computed signal once:
 
 ```python
 import dspplay as dp
 
 y = 0.5 * x
 
-dp.play_signal(y, fs)
+dp.play(y, fs)
 ```
 
 The function waits until playback has ended. Before playback, it checks:
@@ -77,10 +78,39 @@ a concise message and no traceback:
 Playback stopped: Peak 1.100 exceeds the allowed maximum of 1.000. Reduce the level explicitly before playback.
 ```
 
-`play_signal(...)` returns `False` when playback is refused and `True` after
+`play(...)` returns `False` when playback is refused and `True` after
 successful playback. The return value can usually be ignored. Unexpected
 programming and audio-device errors remain regular Python exceptions with a
 traceback.
+
+## Process an array in real time
+
+Use `play_loop(...)` to repeat an array and process consecutive blocks until
+the control window is closed:
+
+```python
+import dspplay as dp
+
+
+gain = dp.slider("Gain", value=0.5, minimum=0.0, maximum=1.0)
+
+
+def process(block, fs):
+    return gain.value * block
+
+
+dp.play_loop(
+    x,
+    fs,
+    process,
+    controls=[gain],
+    title="Gain",
+)
+```
+
+The array is converted to real-time `float32` audio internally. Mono remains
+one-dimensional when it is passed to `process(...)`; multichannel arrays keep
+the shape `(frames, channels)`.
 
 ## Process a file in real time
 
@@ -111,9 +141,9 @@ dp.play_file(
 )
 ```
 
-The higher-level `FileLoop` and `LiveInput` classes remain available when more
-control is needed, but `play_file(...)` and `play_input(...)` are the intended
-convenience API.
+The higher-level `ArrayLoop`, `FileLoop`, and `LiveInput` classes remain
+available when more control is needed, but `play_loop(...)`, `play_file(...)`,
+and `play_input(...)` are the intended convenience API.
 
 ## Data model
 
@@ -143,9 +173,10 @@ def process(block, fs):
     return block
 ```
 
-For `play_file(...)`, `fs` comes from the audio file. For `play_input(...)`, it
-is chosen when the stream starts. This allows filter coefficients, delay times,
-and LFOs to be computed without a hard-coded sample rate.
+For `play_loop(...)`, `fs` is supplied with the array. For `play_file(...)`, it
+comes from the audio file. For `play_input(...)`, it is chosen when the stream
+starts. This allows filter coefficients, delay times, and LFOs to be computed
+without a hard-coded sample rate.
 
 ## Multiple and logarithmic controls
 
@@ -218,8 +249,8 @@ The following rules apply:
 
 - Blocks are processed in order.
 - The processor is not replaced during playback.
-- Each call to `play_file(...)` or `play_input(...)` creates a new audio
-  stream.
+- Each call to `play_loop(...)`, `play_file(...)`, or `play_input(...)` creates
+  a new audio stream.
 - State belongs to the processor; DspPlay does not modify it.
 
 ## Select audio devices
@@ -302,7 +333,7 @@ def process(block, fs):
 x, fs = sf.read("audio/example_stereo.wav")
 y = process(x, fs)
 
-dp.play_signal(y, fs)
+dp.play(y, fs)
 dp.play_file("audio/example_stereo.wav", process)
 ```
 
@@ -330,6 +361,7 @@ an additional shape conversion in a future adapter.
 ## Included examples
 
 - `examples/signal_playback.py`: safe playback of a generated sine signal
+- `examples/gain_loop.py`: gain on a generated signal loop
 - `examples/gain_file.py`: gain on a file loop
 - `examples/saturation_file.py`: two controls and logarithmic scaling
 - `examples/gain_live.py`: live input to output
@@ -343,8 +375,7 @@ uv run python examples/gain_file.py
 ## Deliberately not included yet
 
 This version does not include automatic parameter smoothing, bypass, level
-metering, recording, or a safe adapter for arbitrary Pedalboard plugins. A
-freely distributable shared audio example is also not included.
+metering, recording, or a safe adapter for arbitrary Pedalboard plugins.
 
 ## Technical foundations
 

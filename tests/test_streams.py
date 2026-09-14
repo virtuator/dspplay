@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dspplay.streams import _copy_processed, _LoopReader
+from dspplay.streams import ArrayLoop, _copy_processed, _LoopReader
 
 
 def test_loop_reader_wraps_without_a_gap():
@@ -11,6 +11,14 @@ def test_loop_reader_wraps_without_a_gap():
     _LoopReader(audio).fill(block)
 
     np.testing.assert_array_equal(block[:, 0], [1.0, 2.0, 3.0, 1.0, 2.0])
+
+
+def test_array_loop_accepts_public_mono_shape():
+    stream = ArrayLoop(np.zeros(8), 48_000, lambda block, fs: block)
+
+    assert stream.samplerate == 48_000
+    assert stream.channels == 1
+    assert stream._reader.audio.shape == (8, 1)
 
 
 def test_processed_block_is_copied_to_output():

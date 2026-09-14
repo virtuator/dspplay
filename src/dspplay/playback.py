@@ -10,7 +10,14 @@ from numpy.typing import ArrayLike
 
 from .controls import Parameter, show_controls
 from .errors import SignalSafetyError
-from .streams import FileLoop, LiveInput, Processor, _RealtimeStream, _sounddevice
+from .streams import (
+    ArrayLoop,
+    FileLoop,
+    LiveInput,
+    Processor,
+    _RealtimeStream,
+    _sounddevice,
+)
 
 
 def _validated_signal(
@@ -43,7 +50,7 @@ def _validated_signal(
     return data, float(samplerate)
 
 
-def play_signal(
+def play(
     signal: ArrayLike,
     fs: float,
     *,
@@ -89,6 +96,36 @@ def _run_stream(
     return True
 
 
+def play_loop(
+    signal: ArrayLike,
+    fs: float,
+    process: Processor,
+    *,
+    controls: Sequence[Parameter] | None = None,
+    title: str = "DspPlay",
+    blocksize: int = 256,
+    device: int | str | None = None,
+    latency: float | str | None = "low",
+    max_peak: float = 1.0,
+) -> bool:
+    """Process an array block by block and play it repeatedly."""
+
+    try:
+        stream = ArrayLoop(
+            signal,
+            fs,
+            process,
+            blocksize=blocksize,
+            device=device,
+            latency=latency,
+            max_peak=max_peak,
+        )
+    except SignalSafetyError as error:
+        print(f"Playback stopped: {error}")
+        return False
+    return _run_stream(stream, controls, title)
+
+
 def play_file(
     path: str | Path,
     process: Processor,
@@ -102,14 +139,18 @@ def play_file(
 ) -> bool:
     """Process a sound file block by block and play it repeatedly."""
 
-    stream = FileLoop(
-        path,
-        process,
-        blocksize=blocksize,
-        device=device,
-        latency=latency,
-        max_peak=max_peak,
-    )
+    try:
+        stream = FileLoop(
+            path,
+            process,
+            blocksize=blocksize,
+            device=device,
+            latency=latency,
+            max_peak=max_peak,
+        )
+    except SignalSafetyError as error:
+        print(f"Playback stopped: {error}")
+        return False
     return _run_stream(stream, controls, title)
 
 

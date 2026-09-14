@@ -10,4 +10,4 @@ amplitude = 0.1
 t = np.arange(int(duration * fs)) / fs
 x = amplitude * np.sin(2 * np.pi * f * t)
 
-dp.play_signal(x, fs)
+dp.play(x, fs)

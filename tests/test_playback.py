@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dspplay import play_signal
+from dspplay import play, play_loop
 from dspplay.playback import _validated_signal
 
 
@@ -29,7 +29,7 @@ def test_signal_validation_rejects_unsafe_audio(audio, message):
         _validated_signal(audio, 48_000, 1.0)
 
 
-def test_play_signal_uses_sounddevice_and_waits(monkeypatch):
+def test_play_uses_sounddevice_and_waits(monkeypatch):
     calls = []
 
     class FakeSoundDevice:
@@ -43,7 +43,7 @@ def test_play_signal_uses_sounddevice_and_waits(monkeypatch):
     monkeypatch.setattr("dspplay.playback._sounddevice", lambda: fake_sounddevice)
 
     signal = np.array([0.0, 0.5, -0.5])
-    played = play_signal(signal, 48_000, device="output")
+    played = play(signal, 48_000, device="output")
 
     assert played is True
     assert calls[0][0] == "play"
@@ -52,11 +52,20 @@ def test_play_signal_uses_sounddevice_and_waits(monkeypatch):
     assert calls[1] == ("wait",)
 
 
-def test_play_signal_reports_rejection_without_traceback(capsys):
-    played = play_signal(np.array([1.1]), 48_000)
+def test_play_reports_rejection_without_traceback(capsys):
+    played = play(np.array([1.1]), 48_000)
 
     assert played is False
     assert capsys.readouterr().out == (
         "Playback stopped: Peak 1.100 exceeds the allowed maximum of 1.000. "
         "Reduce the level explicitly before playback.\n"
+    )
+
+
+def test_play_loop_reports_invalid_source_without_traceback(capsys):
+    played = play_loop(np.array([np.nan]), 48_000, lambda block, fs: block)
+
+    assert played is False
+    assert capsys.readouterr().out == (
+        "Playback stopped: Signal contains NaN or infinite values.\n"
     )

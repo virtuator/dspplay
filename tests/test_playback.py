@@ -29,27 +29,49 @@ def test_signal_validation_rejects_unsafe_audio(audio, message):
         _validated_signal(audio, 48_000, 1.0)
 
 
-def test_play_uses_sounddevice_and_waits(monkeypatch):
+def test_play_owns_and_closes_its_output_stream(monkeypatch):
     calls = []
 
     class FakeSoundDevice:
-        def play(self, signal, samplerate, device=None):
-            calls.append(("play", signal.copy(), samplerate, device))
+        class CallbackStop(Exception):
+            pass
 
-        def wait(self):
-            calls.append(("wait",))
+        def OutputStream(self, **kwargs):
+            calls.append(kwargs)
+
+            class Stream:
+                active = False
+
+                def start(self):
+                    output = np.empty((5, 1), np.float32)
+                    with pytest.raises(FakeSoundDevice.CallbackStop):
+                        kwargs["callback"](output, 5, None, None)
+                    calls.append(output)
+
+                def stop(self):
+                    calls.append("stop")
+
+                def close(self):
+                    calls.append("close")
+
+            return Stream()
 
     fake_sounddevice = FakeSoundDevice()
-    monkeypatch.setattr("dspplay.playback._sounddevice", lambda: fake_sounddevice)
+    monkeypatch.setattr("dspplay.streams._sounddevice", lambda: fake_sounddevice)
 
     signal = np.array([0.0, 0.5, -0.5])
     played = play(signal, 48_000, device="output")
 
     assert played is True
-    assert calls[0][0] == "play"
-    np.testing.assert_array_equal(calls[0][1], signal)
-    assert calls[0][2:] == (48_000, "output")
-    assert calls[1] == ("wait",)
+    assert calls[0]["samplerate"] == 48_000
+    assert calls[0]["device"] == "output"
+    np.testing.assert_array_equal(calls[1][:, 0], [0, 0.5, -0.5, 0, 0])
+    assert calls[2:] == ["stop", "close"]
+
+
+def test_nonblocking_invalid_signal_raises_before_starting():
+    with pytest.raises(ValueError, match="allowed maximum"):
+        play(np.array([1.1]), 48_000, blocking=False)
 
 
 def test_play_reports_rejection_without_traceback(capsys):

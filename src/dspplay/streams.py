@@ -123,9 +123,12 @@ class _RealtimeStream:
 
     def stop(self) -> None:
         if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
+            stream = self._stream
             self._stream = None
+            try:
+                stream.stop()
+            finally:
+                stream.close()
         self.check()
 
     def check(self) -> None:
@@ -153,6 +156,37 @@ class _RealtimeStream:
 
     def __exit__(self, exception_type, exception, traceback) -> None:
         self.stop()
+
+
+class _SignalStream(_RealtimeStream):
+    """Finite playback with its own OutputStream (no global sd.play state)."""
+
+    def __init__(self, data, samplerate, device):
+        super().__init__(lambda block, fs: block, 1.0)
+        self.data = data[:, np.newaxis] if data.ndim == 1 else data
+        self.samplerate = samplerate
+        self.device = device
+        self.position = 0
+
+    def _create_stream(self):
+        sd = _sounddevice()
+
+        def callback(outdata, frames, time, status):
+            self._remember_status(status)
+            count = min(frames, len(self.data) - self.position)
+            outdata.fill(0)
+            outdata[:count] = self.data[self.position:self.position + count]
+            self.position += count
+            if self.position == len(self.data):
+                raise sd.CallbackStop
+
+        return sd.OutputStream(
+            samplerate=self.samplerate,
+            channels=self.data.shape[1],
+            device=self.device,
+            dtype="float32",
+            callback=callback,
+        )
 
 
 class ArrayLoop(_RealtimeStream):

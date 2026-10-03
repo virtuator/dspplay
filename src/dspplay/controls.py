@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable
 
 
@@ -102,69 +103,18 @@ def show_controls(
     title: str = "DspPlay",
     check: Callable[[], None] | None = None,
 ) -> None:
-    """Show sliders and block until the window is closed.
-
-    Tkinter is part of most standard Python installations, so the control
-    window adds no Python package dependency.
-    """
+    """Show sliders in a separate process and wait until the window closes."""
 
     if not parameters:
         raise ValueError("show_controls() needs at least one Parameter")
 
+    from ._control_process import ControlWindow
+
+    window = ControlWindow(parameters, title)
     try:
-        import tkinter as tk
-        from tkinter import ttk
-    except ImportError as error:
-        raise RuntimeError(
-            "Tkinter is not available in this Python installation."
-        ) from error
-
-    root = tk.Tk()
-    root.title(title)
-    root.resizable(True, False)
-    root.columnconfigure(0, weight=1)
-    pending_error: list[Exception] = []
-
-    slider_steps = 1_000
-
-    for row, parameter in enumerate(parameters):
-        frame = ttk.Frame(root, padding=(12, 8))
-        frame.grid(row=row, column=0, sticky="ew")
-        frame.columnconfigure(0, weight=1)
-
-        label = ttk.Label(frame, text=parameter.name)
-        label.grid(row=0, column=0, sticky="w")
-
-        value_label = ttk.Label(frame, width=14, anchor="e")
-        value_label.grid(row=0, column=1, sticky="e")
-
-        def update(raw_value: str, p: Parameter = parameter, v=value_label) -> None:
-            p.value = p._from_normalized(float(raw_value) / slider_steps)
-            v.configure(text=p._formatted())
-
-        slider = ttk.Scale(
-            frame,
-            from_=0,
-            to=slider_steps,
-            command=update,
-        )
-        slider.set(parameter._to_normalized() * slider_steps)
-        slider.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
-        value_label.configure(text=parameter._formatted())
-
-    if check is not None:
-
-        def poll() -> None:
-            try:
+        while window.poll():
+            if check is not None:
                 check()
-            except Exception as error:  # noqa: BLE001 - surface the audio error
-                pending_error.append(error)
-                root.destroy()
-                return
-            root.after(50, poll)
-
-        root.after(50, poll)
-
-    root.mainloop()
-    if pending_error:
-        raise pending_error[0]
+            time.sleep(0.02)
+    finally:
+        window.close()

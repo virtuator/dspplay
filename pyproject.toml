@@ -1,6 +1,6 @@
 [project]
 name = "dspplay"
-version = "0.3.0"
+version = "0.4.0"
 description = "A small real-time audio playground for DSP with Python"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .controls import Parameter, show_controls
+from ._session import Playback
+from .controls import Parameter
 from .errors import SignalSafetyError
 from .streams import (
     ArrayLoop,
@@ -16,7 +17,7 @@ from .streams import (
     LiveInput,
     Processor,
     _RealtimeStream,
-    _sounddevice,
+    _SignalStream,
 )
 
 
@@ -56,37 +57,53 @@ def play(
     *,
     device: int | str | None = None,
     max_peak: float = 1.0,
-) -> bool:
+    blocking: bool = True,
+) -> bool | Playback:
     """Validate and play a complete mono or multichannel signal safely."""
 
     try:
         data, samplerate = _validated_signal(signal, fs, max_peak)
     except SignalSafetyError as error:
+        if not blocking:
+            raise
         print(f"Playback stopped: {error}")
         return False
 
-    sd = _sounddevice()
-    sd.play(data, samplerate, device=device)
-    sd.wait()
-    return True
+    return _run_stream(
+        _SignalStream(data, samplerate, device),
+        (),
+        "DspPlay",
+        blocking,
+        finite=True,
+    )
 
 
 def _run_stream(
     stream: _RealtimeStream,
     controls: Sequence[Parameter] | None,
     title: str,
-) -> bool:
+    blocking: bool,
+    *,
+    finite: bool = False,
+) -> bool | Playback:
     parameters = tuple(controls or ())
 
+    playback = Playback(stream, parameters, title)
+    if not blocking:
+        return playback
     try:
-        with stream:
-            if parameters:
-                show_controls(*parameters, title=title, check=stream.check)
+        try:
+            if parameters or finite:
+                playback.wait()
             else:
                 try:
                     input("Audio is running. Press Enter to stop ... ")
                 except KeyboardInterrupt:
                     pass
+        except KeyboardInterrupt:
+            pass
+        finally:
+            playback.stop()
     except RuntimeError as error:
         if isinstance(error.__cause__, SignalSafetyError):
             print(f"Playback stopped: {error.__cause__}")
@@ -107,7 +124,8 @@ def play_loop(
     device: int | str | None = None,
     latency: float | str | None = "low",
     max_peak: float = 1.0,
-) -> bool:
+    blocking: bool = True,
+) -> bool | Playback:
     """Process an array block by block and play it repeatedly."""
 
     try:
@@ -121,9 +139,11 @@ def play_loop(
             max_peak=max_peak,
         )
     except SignalSafetyError as error:
+        if not blocking:
+            raise
         print(f"Playback stopped: {error}")
         return False
-    return _run_stream(stream, controls, title)
+    return _run_stream(stream, controls, title, blocking)
 
 
 def play_file(
@@ -136,7 +156,8 @@ def play_file(
     device: int | str | None = None,
     latency: float | str | None = "low",
     max_peak: float = 1.0,
-) -> bool:
+    blocking: bool = True,
+) -> bool | Playback:
     """Process a sound file block by block and play it repeatedly."""
 
     try:
@@ -149,9 +170,11 @@ def play_file(
             max_peak=max_peak,
         )
     except SignalSafetyError as error:
+        if not blocking:
+            raise
         print(f"Playback stopped: {error}")
         return False
-    return _run_stream(stream, controls, title)
+    return _run_stream(stream, controls, title, blocking)
 
 
 def play_input(
@@ -165,7 +188,8 @@ def play_input(
     device: int | str | tuple[int | str | None, int | str | None] | None = None,
     latency: float | str | tuple[float | str, float | str] | None = "low",
     max_peak: float = 1.0,
-) -> bool:
+    blocking: bool = True,
+) -> bool | Playback:
     """Process an audio input block by block and play the result."""
 
     stream = LiveInput(
@@ -177,4 +201,4 @@ def play_input(
         latency=latency,
         max_peak=max_peak,
     )
-    return _run_stream(stream, controls, title)
+    return _run_stream(stream, controls, title, blocking)

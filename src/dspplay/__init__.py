@@ -1,5 +1,6 @@
 """Hear small Python DSP functions in realtime."""
 
+from ._session import Playback
 from .controls import Parameter, show_controls, slider
 from .errors import SignalSafetyError
 from .playback import play, play_file, play_input, play_loop
@@ -10,6 +11,7 @@ __all__ = [
     "FileLoop",
     "LiveInput",
     "Parameter",
+    "Playback",
     "SignalSafetyError",
     "list_devices",
     "play",

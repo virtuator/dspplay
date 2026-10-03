@@ -145,6 +145,59 @@ The higher-level `ArrayLoop`, `FileLoop`, and `LiveInput` classes remain
 available when more control is needed, but `play_loop(...)`, `play_file(...)`,
 and `play_input(...)` are the intended convenience API.
 
+## Plots and background playback
+
+All four playback functions accept `blocking=False`. They return a running
+`Playback` object immediately after audio and, if requested, its controls have
+started:
+
+```python
+playback = dp.play_loop(x, fs, process, controls=[gain], blocking=False)
+
+plt.plot(t, x)
+plt.show()
+
+# Closing a plot does not stop audio. Stop it explicitly when desired.
+playback.stop()
+```
+
+An alternative is a context manager, which stops playback when the block ends:
+
+```python
+with dp.play_loop(x, fs, process, controls=[gain], blocking=False):
+    plt.plot(t, x)
+    plt.show()
+```
+
+The handle provides `active`, `stop()`, `wait()`, and `check()`. `stop()` closes
+its audio stream and control window; repeated calls are safe. `wait()` waits
+for completion. `check()` reports saved background errors. These errors are
+also raised by `wait()`, `stop()`, and context-manager exit. Invalid input to a
+non-blocking call raises an exception immediately rather than returning `False`.
+
+Each control window runs in a fresh Python process using the same interpreter.
+Tkinter is never initialized in the caller's process, and DspPlay does not
+select or change a Matplotlib backend. The user's script and processor are not
+re-imported in the child; no `if __name__ == "__main__":` guard is required.
+Slider changes update the original `Parameter` objects in a monitor thread;
+the audio callback only reads their local values. Programmatic parameter
+changes are sent back to the control window as well.
+
+Closing a control window stops its playback. A control-window failure also
+stops audio and is reported as an error. Plot windows belong to the caller:
+DspPlay never closes them. To keep plots responsive, let their GUI event loop
+run (for example, with `plt.show()`) while DspPlay runs non-blocking. A
+blocking playback call or `wait()` does not service unrelated GUI event loops.
+The default remains `blocking=True` for simple audio scripts.
+
+Background playback ends when the Python process exits. Keep the program
+alive using its GUI event loop or `playback.wait()`; `blocking=False` alone does
+not keep a script alive. For deterministic cleanup, use `stop()` or the context
+manager. DspPlay also cleans up active sessions at normal interpreter shutdown.
+
+Tkinter and a graphical desktop must be available to open controls. Audio and
+non-blocking playback without controls do not require Tkinter or Matplotlib.
+
 ## Data model
 
 The public interface follows the same convention as SoundFile:
@@ -365,6 +418,8 @@ an additional shape conversion in a future adapter.
 - `examples/gain_file.py`: gain on a file loop
 - `examples/saturation_file.py`: two controls and logarithmic scaling
 - `examples/gain_live.py`: live input to output
+- `examples/plot_and_gain.py`: independent Matplotlib plot and gain controls
+  (requires `uv add matplotlib`)
 
 Run an example from the project directory:
 
